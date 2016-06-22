@@ -165,3 +165,10 @@ def check_libiio(cfg, env):
     if cfg.env['LIB_LIBIIO']:
         env.LIB += ['dl']
     return True
+
+#Added Check to test for OspenCV
+@conf
+def check_opencv(cfg, env):
+    cfg.check_cfg(package='opencv', mandatory=False, global_define=True,
+                  args=['--libs', '--cflags'])
+    env.LIB += cfg.env['OPENCV']

@@ -226,6 +226,7 @@ class linux(Board):
         cfg.check_librt(env)
         cfg.check_lttng(env)
         cfg.check_libiio(env)
+        cfg.check_opencv(env)
 
         env.LINKFLAGS += ['-pthread',]
         env.AP_LIBRARIES = [
@@ -311,6 +312,18 @@ class bebop(linux):
             CONFIG_HAL_BOARD_SUBTYPE = 'HAL_BOARD_SUBTYPE_LINUX_BEBOP',
         )
         env.STATIC_LINKING = True
+
+# Add additional Libraries for Bebop (currently: Opencv & dependencies)
+        env.LIB += [
+            'm',
+            'opencv_imgcodecs',
+            'opencv_video',
+            'opencv_imgproc',
+            'opencv_highgui',
+            'opencv_core',
+            'libpng',
+            'zlib',
+        ]
 
 class raspilot(linux):
     toolchain = 'arm-linux-gnueabihf'
