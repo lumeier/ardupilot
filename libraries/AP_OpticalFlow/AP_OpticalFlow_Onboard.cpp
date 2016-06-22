@@ -24,7 +24,7 @@
      CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_BBBMINI)
 
 #ifndef OPTICALFLOW_ONBOARD_DEBUG
-#define OPTICALFLOW_ONBOARD_DEBUG 0
+#define OPTICALFLOW_ONBOARD_DEBUG 1
 #endif
 
 #define OPTICALFLOW_ONBOARD_ID 1
@@ -89,12 +89,14 @@ void AP_OpticalFlow_Onboard::update()
 
 #if OPTICALFLOW_ONBOARD_DEBUG
     hal.console->printf("FLOW_ONBOARD qual:%u FlowRateX:%4.2f Y:%4.2f"
-                        "BodyRateX:%4.2f Y:%4.2f, delta_time = %u\n",
+                        "BodyRateX:%4.6f Y:%4.6f, GyroRateX:%4.6f Y:%4.6f, delta_time = %u\n",
                         (unsigned)state.surface_quality,
                         (double)state.flowRate.x,
                         (double)state.flowRate.y,
                         (double)state.bodyRate.x,
                         (double)state.bodyRate.y,
+                        (double)data_frame.gyro_x_integral,
+                        (double)data_frame.gyro_y_integral,
                         data_frame.delta_time);
 #endif
 }
@@ -106,6 +108,7 @@ void AP_OpticalFlow_Onboard::_get_gyro(float &rate_x, float &rate_y,
     rate_x = rates.x;
     rate_y = rates.y;
     rate_z = rates.z;
+
 }
 
 #endif
