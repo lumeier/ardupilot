@@ -28,6 +28,13 @@
 #include <unistd.h>
 #include <vector>
 
+//Added libraries for OpenCV support
+#include <iostream>
+#include <fstream>
+#include "opencv2/core/core.hpp"
+#include "opencv2/highgui/highgui.hpp"
+#include "opencv2/imgproc/imgproc.hpp"
+
 #include "CameraSensor_Mt9v117.h"
 #include "GPIO.h"
 #include "PWM_Sysfs.h"
@@ -35,6 +42,9 @@
 #define OPTICAL_FLOW_ONBOARD_RTPRIO 11
 
 extern const AP_HAL::HAL& hal;
+// Add own Hal object to plot debug vars:
+const AP_HAL::HAL& hal_debug = AP_HAL::get_HAL();
+uint32_t now = AP_HAL::millis();
 
 using namespace Linux;
 
@@ -59,8 +69,10 @@ void OpticalFlow_Onboard::init(AP_HAL::OpticalFlow::Gyro_Cb get_gyro)
     const char* device_path = HAL_OPTFLOW_ONBOARD_VDEV_PATH;
     memtype = V4L2_MEMORY_MMAP;
     nbufs = HAL_OPTFLOW_ONBOARD_NBUFS;
-    _width = HAL_OPTFLOW_ONBOARD_OUTPUT_WIDTH;
-    _height = HAL_OPTFLOW_ONBOARD_OUTPUT_HEIGHT;
+    // _width = HAL_OPTFLOW_ONBOARD_OUTPUT_WIDTH;
+    // _height = HAL_OPTFLOW_ONBOARD_OUTPUT_HEIGHT;
+    _width = HAL_OPTFLOW_ONBOARD_SENSOR_WIDTH;
+    _height = HAL_OPTFLOW_ONBOARD_SENSOR_HEIGHT;
     crop_width = HAL_OPTFLOW_ONBOARD_CROP_WIDTH;
     crop_height = HAL_OPTFLOW_ONBOARD_CROP_HEIGHT;
     top = 0;
@@ -307,6 +319,19 @@ void OpticalFlow_Onboard::_run_optflow()
             memcpy(video_frame.data, convert_buffer, convert_buffer_size);
         }
 
+#ifdef OPTICALFLOW_ONBOARD_RECORD_VIDEO
+        // Save image before shrinking/cropping
+        // Single .png image will be overwritten in every loop
+        if (now<AP_HAL::millis()-500){
+          now=AP_HAL::millis();
+          cv::Mat image_yuv=cv::Mat(HAL_OPTFLOW_ONBOARD_SENSOR_HEIGHT + HAL_OPTFLOW_ONBOARD_SENSOR_HEIGHT/2,HAL_OPTFLOW_ONBOARD_SENSOR_WIDTH, CV_8UC1, video_frame.data);
+          cv::Rect myROI(0,0,HAL_OPTFLOW_ONBOARD_SENSOR_WIDTH,HAL_OPTFLOW_ONBOARD_SENSOR_HEIGHT);
+          cv::Mat img_64 = image_yuv(myROI);
+          cv::imwrite("/data/ftp/internal_000/bebop_vertcam2.png", img_64);
+        }
+#endif
+
+
         if (_shrink_by_software) {
             /* shrink_8bpp() will shrink a selected area using the offsets,
              * therefore, we don't need the crop. */
@@ -344,7 +369,7 @@ void OpticalFlow_Onboard::_run_optflow()
         int fd = open(OPTICALFLOW_ONBOARD_VIDEO_FILE, O_CREAT | O_WRONLY
                 | O_APPEND, S_IRUSR | S_IWUSR | S_IRGRP |
                 S_IWGRP | S_IROTH | S_IWOTH);
-	    if (fd != -1) {
+        if (fd != -1) {
 	        write(fd, video_frame.data, _sizeimage);
 #ifdef OPTICALFLOW_ONBOARD_RECORD_METADATAS
             struct PACKED {

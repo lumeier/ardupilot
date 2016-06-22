@@ -229,7 +229,8 @@
 #define HAL_PARAM_DEFAULTS_PATH "/etc/arducopter/bebop.parm"
 
 //Add path files for recording vertical camera images on Bebop
-#define OPTICALFLOW_ONBOARD_RECORD_VIDEO 1
+#define OPTICALFLOW_ONBOARD_RECORD_OPENCV_VIDEO 1
+#define OPTICALFLOW_ONBOARD_RECORD_VIDEO 0
 #define OPTICALFLOW_ONBOARD_VIDEO_FILE "/data/ftp/internal_000/vertcam_video/video.bin"
 /* focal length 3.6 um, 2x binning in each direction
  * 240x240 crop rescaled to 64x64 */

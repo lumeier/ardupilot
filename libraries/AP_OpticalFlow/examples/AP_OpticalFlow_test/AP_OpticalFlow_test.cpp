@@ -37,23 +37,23 @@ void setup()
 {
     hal.console->println("OpticalFlow library test ver 1.6");
 
-    hal.scheduler->delay(1000);
-
-    // flowSensor initialization
+    // flowSensor initialization  & first update
     optflow.init();
+    optflow.update();
+    hal.scheduler->delay(1000);
 
     if (!optflow.healthy()) {
         hal.console->print("Failed to initialise PX4Flow ");
     }
 
-    hal.scheduler->delay(1000);
+    hal.scheduler->delay(100);
 }
 
 void loop()
 {
-    hal.console->println("this only tests compilation succeeds");
-
-    hal.scheduler->delay(5000);
+  // optflow.update() will print optical flow data if debug messages are activated
+    optflow.update();
+    hal.scheduler->delay(1000);
 }
 
 AP_HAL_MAIN();

@@ -108,7 +108,6 @@ void AP_OpticalFlow_Onboard::_get_gyro(float &rate_x, float &rate_y,
     rate_x = rates.x;
     rate_y = rates.y;
     rate_z = rates.z;
-
 }
 
 #endif

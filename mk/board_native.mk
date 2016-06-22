@@ -31,7 +31,7 @@ DEPFLAGS        =   -MD -MP -MT $@
 CXXOPTS         =   -ffunction-sections -fdata-sections -fno-exceptions -fsigned-char
 COPTS           =   -ffunction-sections -fdata-sections -fsigned-char
 
-ASOPTS          =   -x assembler-with-cpp 
+ASOPTS          =   -x assembler-with-cpp
 
 # features: TODO detect dependecy and make them optional
 HAVE_LTTNG_UST=
