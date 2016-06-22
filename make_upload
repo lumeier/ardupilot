@@ -1,0 +1,23 @@
+#!/bin/bash
+# This Script will make the example Sketch and will Upload it to the Bebop drone
+
+#Define Parameters
+FILE='AP_OpticalFlow_test'
+NAME='flow'
+BUILD_PATH="$PWD/build/bebop/examples/"
+
+
+
+#Compile for bebop and strip binaries
+$PWD/modules/waf/waf-light configure --board=bebop
+$PWD/modules/waf/waf-light examples
+
+#Connect via ftp and upload file
+adb disconnect 192.168.43.1:9050
+adb connect 192.168.43.1:9050
+sleep 1
+adb shell mount -o remount,rw /
+sleep 1
+mv $BUILD_PATH$FILE $BUILD_PATH$NAME
+sleep 1
+adb push $BUILD_PATH$NAME /usr/bin/
