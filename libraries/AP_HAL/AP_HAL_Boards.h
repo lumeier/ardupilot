@@ -227,6 +227,10 @@
 #define HAL_FLOW_PX4_BOTTOM_FLOW_FEATURE_THRESHOLD 30
 #define HAL_FLOW_PX4_BOTTOM_FLOW_VALUE_THRESHOLD 5000
 #define HAL_PARAM_DEFAULTS_PATH "/etc/arducopter/bebop.parm"
+
+//Add path files for recording vertical camera images on Bebop
+#define OPTICALFLOW_ONBOARD_RECORD_VIDEO 1
+#define OPTICALFLOW_ONBOARD_VIDEO_FILE "/data/ftp/internal_000/vertcam_video/video.bin"
 /* focal length 3.6 um, 2x binning in each direction
  * 240x240 crop rescaled to 64x64 */
 #define HAL_FLOW_PX4_FOCAL_LENGTH_MILLIPX (2.5 / (3.6 * 2.0 * 240 / 64))
@@ -396,7 +400,7 @@
 #define HAL_GPIO_B_LED_PIN        25
 #define HAL_GPIO_C_LED_PIN        16
 #define HAL_GPIO_LED_ON           LOW
-#define HAL_GPIO_LED_OFF          HIGH  
+#define HAL_GPIO_LED_OFF          HIGH
 #else
 #error "no Linux board subtype set"
 #endif
