@@ -34,6 +34,9 @@
 #include "opencv2/imgproc.hpp"
 #include "trackFeatures.h"
 
+//RangeFinder
+#include <AP_RangeFinder/AP_RangeFinder.h>
+
 // Include header for VIO
 #include "vio/VIO.h"
 #include "assert.h"
@@ -63,6 +66,8 @@ private:
     double fps;
     int vision_subsample;
     bool auto_subsample;
+    void _init_rangefinder(); //Rangefinder Init_Function
+    double get_range();
 
     void _run_optflow();
     static void *_read_thread(void *arg);

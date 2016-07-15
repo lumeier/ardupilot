@@ -51,6 +51,11 @@ int n_active=0;
 #define OPTICAL_FLOW_ONBOARD_RTPRIO 11
 
 extern const AP_HAL::HAL& hal;
+
+//Initialize Rangefinder and SerialManager
+static AP_SerialManager serial_manager;
+static RangeFinder sonar {serial_manager};
+
 // Add own Hal object to plot debug vars:
 const AP_HAL::HAL& hal_debug = AP_HAL::get_HAL();
 uint32_t now = AP_HAL::millis();
@@ -73,6 +78,9 @@ void OpticalFlow_Onboard::init(AP_HAL::OpticalFlow::Gyro_Cb get_gyro)
 {
     //Set Start Time
     start_time=AP_HAL::millis();
+
+    //Initialize Range Finder
+    _init_rangefinder();
 
     // Initialize VioFlow
     _init_vioflow();
@@ -290,9 +298,10 @@ void OpticalFlow_Onboard::_vioflow(cv::Mat vertcam_frame)
     meas.acc[1]=0.0026;
     meas.acc[2]=-11.044;
 
-    // meas.acc[0]=0.2943;
-    // meas.acc[1]=0.0026;
-    // meas.acc[2]=-15.044;
+    //Get Rangefinder measurements
+    sonar.update();
+    //printf("Rangefinder Distance: %d\n",sonar.distance_cm());
+
 
 
     //double dt = 1/60.;
@@ -304,7 +313,7 @@ void OpticalFlow_Onboard::_vioflow(cv::Mat vertcam_frame)
       vio.predict(meas,dt);
     }
     int duration_predict = (AP_HAL::millis() - tic_predict);
-    printf("Duration predict: %d ms\n",duration_predict);
+    //printf("Duration predict: %d ms\n",duration_predict);
     //printf("Prediction Ended\n");
 
 //    printf("Optical Flow: Camera Focal length2: %lf \n", cameraParams.CameraParameters1.FocalLength[0]);
@@ -339,7 +348,7 @@ void OpticalFlow_Onboard::_vioflow(cv::Mat vertcam_frame)
         z_all_r[2*i + 1] = features_r[i].y;
     }
     int duration_feature_tracking = (AP_HAL::millis() - tic_feature_tracking);
-    printf("Duration Feature Tracking %d ms\n",duration_feature_tracking);
+    //printf("Duration Feature Tracking %d ms\n",duration_feature_tracking);
 
     // //*********************************************************************
     // // SLAM update
@@ -350,7 +359,7 @@ void OpticalFlow_Onboard::_vioflow(cv::Mat vertcam_frame)
     int tic_update = AP_HAL::millis();
     vio.update(update_vec_, z_all_l, z_all_r, robot_state, map, anchor_poses, delayedStatus);
     int duration_update = (AP_HAL::millis() - tic_update);
-    printf("Duration update: %d ms\n",duration_update);
+    //printf("Duration update: %d ms\n",duration_update);
 
     //Debug: Print Robot Position
     // printf("Robot Position: X: ");
@@ -433,6 +442,18 @@ void OpticalFlow_Onboard::_init_vioflow() {
 
 }
 
+void OpticalFlow_Onboard::_init_rangefinder()
+{
+  // Setup parameter for Bebop Rangefinder
+  AP_Param::set_object_value(&sonar, sonar.var_info, "_TYPE", RangeFinder::RangeFinder_TYPE_BEBOP);
+  AP_Param::set_object_value(&sonar, sonar.var_info, "_PIN", -1);
+  AP_Param::set_object_value(&sonar, sonar.var_info, "_SCALING", 1.0);
+
+  // initialise sensor, delaying to make debug easier
+  hal.scheduler->delay(200);
+  sonar.init();
+  hal.console->printf("RangeFinder: %d devices detected\n", sonar.num_sensors());
+}
 void OpticalFlow_Onboard::_run_optflow()
 {
     hal.console->println("Run Optflow");

@@ -35,8 +35,7 @@ static OpticalFlow optflow(vehicle.ahrs);
 
 void setup()
 {
-
-    hal.console->println("OpticalFlow library test ver 1.6");
+  hal.console->println("OpticalFlow library test ver 1.6");
 
     // flowSensor initialization  & first update
     optflow.init();
