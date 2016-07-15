@@ -9,15 +9,16 @@ BUILD_PATH="$PWD/build/bebop/examples/"
 
 
 #Compile for bebop and strip binaries
+#alias waf="$PWD/modules/waf/waf-light"
 $PWD/modules/waf/waf-light configure --board=bebop
 $PWD/modules/waf/waf-light examples
 
 #Connect via ftp and upload file
 adb disconnect 192.168.43.1:9050
 adb connect 192.168.43.1:9050
-sleep 1
+sleep 0.2
 adb shell mount -o remount,rw /
-sleep 1
+sleep 0.2
 mv $BUILD_PATH$FILE $BUILD_PATH$NAME
-sleep 1
-adb push $BUILD_PATH$NAME /usr/bin/
+sleep 0.2
+adb push $BUILD_PATH$NAME /dev/shm

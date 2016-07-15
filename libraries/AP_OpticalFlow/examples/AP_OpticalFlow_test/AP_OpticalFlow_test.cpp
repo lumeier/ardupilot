@@ -35,12 +35,13 @@ static OpticalFlow optflow(vehicle.ahrs);
 
 void setup()
 {
+
     hal.console->println("OpticalFlow library test ver 1.6");
 
     // flowSensor initialization  & first update
     optflow.init();
     optflow.update();
-    hal.scheduler->delay(1000);
+    hal.scheduler->delay(11000);
 
     if (!optflow.healthy()) {
         hal.console->print("Failed to initialise PX4Flow ");

@@ -4,14 +4,28 @@
 
 #include <AP_HAL/AP_HAL.h>
 #include <AP_RangeFinder/AP_RangeFinder.h>
+//Matlab Code Test include
+ // #include "add_it/rt_nonfinite.h"
+ // #include "add_it/add_it.h"
+ // #include "add_it/add_it_terminate.h"
+ // #include "add_it/add_it_initialize.h"
+
 
 const AP_HAL::HAL& hal = AP_HAL::get_HAL();
 
 static AP_SerialManager serial_manager;
 static RangeFinder sonar {serial_manager};
+double a;
+double b;
+double y;
 
 void setup()
 {
+//    add_it_initialize();
+    a=10;
+    b=20.5;
+    y=5;
+
     // print welcome message
     hal.console->println("Range Finder library test");
 
@@ -28,6 +42,10 @@ void setup()
 
 void loop()
 {
+    //y=add_it(a,b);
+    y=5;
+    hal.console->printf("Result: ");
+    hal.console->println(y);
     // Delay between reads
     hal.scheduler->delay(100);
     sonar.update();

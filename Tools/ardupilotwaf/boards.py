@@ -313,16 +313,48 @@ class bebop(linux):
         )
         env.STATIC_LINKING = True
 
-# Add additional Libraries for Bebop (currently: Opencv & dependencies)
+# # Add additional Libraries for Bebop (currently: Opencv & dependencies)
+#         env.LIB += [
+#             'm',
+#             'opencv_highgui',
+#             'opencv_imgcodecs',
+#             'opencv_video',
+#             'opencv_imgproc',
+#             'opencv_core',
+#             'libpng',
+#             'zlib',
+#         ]
+
         env.LIB += [
-            'm',
-            'opencv_imgcodecs',
-            'opencv_video',
-            'opencv_imgproc',
-            'opencv_highgui',
-            'opencv_core',
-            'libpng',
-            'zlib',
+        'track_features',
+        'opencv_shape',
+        'opencv_stitching',
+        'opencv_objdetect',
+        'opencv_superres',
+        'opencv_videostab',
+        'opencv_calib3d',
+        'opencv_features2d',
+        'opencv_highgui',
+        'opencv_videoio',
+        'opencv_imgcodecs',
+        'opencv_video',
+        'opencv_photo',
+        'opencv_ml',
+        'opencv_imgproc',
+        'opencv_flann',
+        'opencv_core',
+# 3rd party Libraries
+        'track_features',
+        'zlib',
+        'libpng',
+        'stdc++',
+        'dl',
+        'm',
+        'pthread',
+        'rt',
+# Test Matlab coder library
+        'vioclass',
+        'vioflow',
         ]
 
 class raspilot(linux):

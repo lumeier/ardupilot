@@ -28,12 +28,21 @@
 #include <unistd.h>
 #include <vector>
 
-//Added libraries for OpenCV support
-#include <iostream>
-#include <fstream>
-#include "opencv2/core/core.hpp"
-#include "opencv2/highgui/highgui.hpp"
-#include "opencv2/imgproc/imgproc.hpp"
+
+
+//Feature Tracker Initializations
+int n_features = 5;
+cv::Point2f point_a(0.f, 0.f);
+cv::Point2f motion(0.f, 0.f);
+cv::Point2f motion_old(0.f, 0.f);
+cv::Point2f motion_print(0.f, 0.f);
+cv::Point midpoint(160,120);
+std::vector<cv::Point2f> features_l_old(n_features,point_a);
+std::vector<cv::Point2f> features_old(n_features,point_a);
+std::vector<int> status(n_features,2);
+int n_active=0;
+
+
 
 #include "CameraSensor_Mt9v117.h"
 #include "GPIO.h"
@@ -45,11 +54,29 @@ extern const AP_HAL::HAL& hal;
 // Add own Hal object to plot debug vars:
 const AP_HAL::HAL& hal_debug = AP_HAL::get_HAL();
 uint32_t now = AP_HAL::millis();
+uint32_t image_count=0;
+uint32_t start_time;
+uint32_t runtime;
+
+
+#ifdef OPTICALFLOW_ONBOARD_RECORD_OPENCV_VIDEO
+  //cv::Size size_vid = cv::Size(320,240);
+  //cv::VideoWriter vertcam("/data/ftp/internal_000/vert_cam.avi",cv::VideoWriter::fourcc('D','I','V','X'),10,size_vid,false);
+//  cv::VideoWriter vertcam("/data/ftp/internal_000/vert_cam.avi",CV_FOURCC('D','I','V','X'),10,size_vid,false);
+#endif
 
 using namespace Linux;
+VIO vio;
+
 
 void OpticalFlow_Onboard::init(AP_HAL::OpticalFlow::Gyro_Cb get_gyro)
 {
+    //Set Start Time
+    start_time=AP_HAL::millis();
+
+    // Initialize VioFlow
+    _init_vioflow();
+
     uint32_t top, left;
     uint32_t crop_width, crop_height;
     uint32_t memtype = V4L2_MEMORY_MMAP;
@@ -236,8 +263,179 @@ void *OpticalFlow_Onboard::_read_thread(void *arg)
     return NULL;
 }
 
+
+void OpticalFlow_Onboard::_vioflow(cv::Mat vertcam_frame)
+{   //Initialize
+
+    //Debug: Load Image 5 for debug purpose (Fixed Image)
+    //vertcam_frame= cv::imread("/data/ftp/internal_000/bebop_vertcam_5.bmp",0);
+
+    std::vector<FloatType> z_all_l(matlab_consts::numTrackFeatures * 2, 0.0);
+    std::vector<FloatType> z_all_r(matlab_consts::numTrackFeatures * 2, 0.0);
+    std::vector<cv::Point2f> features_l(matlab_consts::numTrackFeatures);
+    std::vector<cv::Point2f> features_r(matlab_consts::numTrackFeatures);
+    std::vector<FloatType> delayedStatus(matlab_consts::numTrackFeatures);
+    //**********************************************************************
+    // SLAM prediciton
+    //**********************************************************************
+    //Gyro will be integrated later, no prediction before that
+    //Accelerometer is not used, so no prediction
+    VIOMeasurements meas;
+
+    meas.gyr[0]=-0.0699;
+    meas.gyr[1]=-0.0343;
+    meas.gyr[2]=-0.0357;
+    //
+    meas.acc[0]=0.2943;
+    meas.acc[1]=0.0026;
+    meas.acc[2]=-11.044;
+
+    // meas.acc[0]=0.2943;
+    // meas.acc[1]=0.0026;
+    // meas.acc[2]=-15.044;
+
+
+    //double dt = 1/60.;
+    int tic_predict = AP_HAL::millis();
+    double dt= 0.1;
+    for (int i_pred=0;i_pred<1;i_pred++)
+    {
+      //printf("$$$$$$$- Sensor Prediction -$$$$$$$$$\n");
+      vio.predict(meas,dt);
+    }
+    int duration_predict = (AP_HAL::millis() - tic_predict);
+    printf("Duration predict: %d ms\n",duration_predict);
+    //printf("Prediction Ended\n");
+
+//    printf("Optical Flow: Camera Focal length2: %lf \n", cameraParams.CameraParameters1.FocalLength[0]);
+
+    //*********************************************************************
+    // Point tracking
+    //*********************************************************************
+    int tic_feature_tracking = AP_HAL::millis();
+    int stereo = 0;
+
+    // Print update_vector for debugging
+    // hal.console->printf("update_vec_ before tracking :"
+    //
+    // for (int i = 0; i < features_l.size(); i++) {
+    //     if (i<45){
+    //     hal.console->printf("%d",update_vec_[i]);
+    //     hal.console->printf(" ");
+    //   }}
+    //   hal.console->println(" ");
+
+    trackFeatures(vertcam_frame,vertcam_frame,features_l,features_r,update_vec_,stereo);
+
+    for (int i = 0; i < features_l.size(); i++) {
+        if (i<48){
+
+      }
+        z_all_l[2*i + 0] = features_l[i].x;
+        z_all_l[2*i + 1] = features_l[i].y;
+
+        //Should be removed: right image not needed for VioFlow
+        z_all_r[2*i + 0] = features_r[i].x;
+        z_all_r[2*i + 1] = features_r[i].y;
+    }
+    int duration_feature_tracking = (AP_HAL::millis() - tic_feature_tracking);
+    printf("Duration Feature Tracking %d ms\n",duration_feature_tracking);
+
+    // //*********************************************************************
+    // // SLAM update
+    // //*********************************************************************
+    //Should be removed: Parameters don't have to be set before every update
+    vio.setParams(cameraParams, noiseParams, vioParams);
+
+    int tic_update = AP_HAL::millis();
+    vio.update(update_vec_, z_all_l, z_all_r, robot_state, map, anchor_poses, delayedStatus);
+    int duration_update = (AP_HAL::millis() - tic_update);
+    printf("Duration update: %d ms\n",duration_update);
+
+    //Debug: Print Robot Position
+    // printf("Robot Position: X: ");
+    // printf("%f",robot_state.pos[0]);
+    // printf(" Y: ");
+    // printf("%f",robot_state.pos[1]);
+    // printf(" Z: ");
+    // printf("%f\n",robot_state.pos[2]);
+}
+
+void OpticalFlow_Onboard::_init_vioflow() {
+      // initialize structs
+      cameraParams = { {}, {}};
+      noiseParams = {};
+      vioParams = {};
+
+      // Define Vio Parameters
+
+      noiseParams.process_noise.qv = 10;                  // noise acc
+      noiseParams.process_noise.qw = 0.001;               // noise gyro
+      noiseParams.process_noise.qwo = 0.000;              // noise gyro bias
+      noiseParams.process_noise.qao = 0.000;              // noise acc bias
+      noiseParams.process_noise.qR_ci =0.001*0;           // noise q_R_ci
+      noiseParams.inv_depth_initial_unc = 0.001;          // noise inverse depth initial uncertainty
+      noiseParams.image_noise = 1;                        // image noise
+
+      //noiseParams.gyro_bias_initial_unc= [0.01 0.01 0.01];// gyro bias initial uncertainty vector
+      noiseParams.gyro_bias_initial_unc[0]= 0.01;
+      noiseParams.gyro_bias_initial_unc[1]= 0.01;
+      noiseParams.gyro_bias_initial_unc[2]= 0.01;
+
+      //noiseParams.acc_bias_initial_unc= [0,0,0];          // acc bias initial uncetainty vector
+      noiseParams.acc_bias_initial_unc[0]= 0;
+      noiseParams.acc_bias_initial_unc[1]= 0;
+      noiseParams.acc_bias_initial_unc[2]= 0;
+
+
+      vioParams.max_ekf_iterations=3;                     // max ekf iterations
+      vioParams.delayed_initialization = true;
+      vioParams.mono = true;
+      vioParams.fixed_feature = false;
+      vioParams.RANSAC = true;
+      vioParams.full_stereo = false;
+      vioParams.delayed_fixing=true;
+
+      //cameraParams.RadialDistortion=[0.0698,-1.2074,3.2751];
+      vertcameraParams.RadialDistortion[0]=0.0698;
+      vertcameraParams.RadialDistortion[1]=-1.2074;
+      vertcameraParams.RadialDistortion[2]=3.2751;
+      //cameraParams.FocalLength=[412.3540,306.5525];
+      vertcameraParams.FocalLength[0]=412.3540;
+      vertcameraParams.FocalLength[1]=306.5525;
+      //cameraParams.PrincipalPoint=[155.9669,130.6196];
+      vertcameraParams.PrincipalPoint[0]=155.9669;
+      vertcameraParams.PrincipalPoint[0]=130.6196;
+
+      vertcameraParams.DistortionModel=0; // PLUMB_BOB=0, ATAN = 1
+
+      cameraParams.CameraParameters1=vertcameraParams;
+      cameraParams.CameraParameters2=vertcameraParams;
+
+      printf("Optical Flow: Camera Focal length: %lf \n", vertcameraParams.FocalLength[0]);
+
+
+
+
+      fps=30;
+      vision_subsample=1;
+      if (vision_subsample < 1) {
+          auto_subsample = true;
+          //("Auto subsamlple: Using every VIO message with images to update, others to predict");
+      }
+
+      update_vec_.assign(matlab_consts::numTrackFeatures, 0);
+      map.resize(matlab_consts::numTrackFeatures * 3);
+      anchor_poses.resize(matlab_consts::numAnchors);
+
+       vio.setParams(cameraParams, noiseParams, vioParams);
+
+
+}
+
 void OpticalFlow_Onboard::_run_optflow()
 {
+    hal.console->println("Run Optflow");
     float rate_x, rate_y, rate_z;
     Vector3f gyro_rate;
     Vector2f flow_rate;
@@ -297,8 +495,12 @@ void OpticalFlow_Onboard::_run_optflow()
            HAL_OPTFLOW_ONBOARD_OUTPUT_HEIGHT / 2;
     }
 
+
+
+
     while(true) {
         /* wait for next frame to come */
+        //hal.console->println("Before segfault");
         if (!_videoin->get_frame(video_frame)) {
             if (convert_buffer) {
                free(convert_buffer);
@@ -310,7 +512,7 @@ void OpticalFlow_Onboard::_run_optflow()
 
             AP_HAL::panic("OpticalFlow_Onboard: couldn't get frame\n");
         }
-
+        //hal.console->println("Still alive!!");
         if (_format == V4L2_PIX_FMT_YUYV) {
             VideoIn::yuyv_to_grey((uint8_t *)video_frame.data,
                 convert_buffer_size * 2, convert_buffer);
@@ -319,16 +521,83 @@ void OpticalFlow_Onboard::_run_optflow()
             memcpy(video_frame.data, convert_buffer, convert_buffer_size);
         }
 
-#ifdef OPTICALFLOW_ONBOARD_RECORD_VIDEO
+#ifdef OPTICALFLOW_ONBOARD_RECORD_OPENCV_VIDEO
         // Save image before shrinking/cropping
-        // Single .png image will be overwritten in every loop
-        if (now<AP_HAL::millis()-500){
+        int tic_fps = AP_HAL::millis();
+
+        //hal.console->println(tic_fps);
+        if (now<AP_HAL::millis()-100){
           now=AP_HAL::millis();
+
+          //Load Image to Mat
           cv::Mat image_yuv=cv::Mat(HAL_OPTFLOW_ONBOARD_SENSOR_HEIGHT + HAL_OPTFLOW_ONBOARD_SENSOR_HEIGHT/2,HAL_OPTFLOW_ONBOARD_SENSOR_WIDTH, CV_8UC1, video_frame.data);
           cv::Rect myROI(0,0,HAL_OPTFLOW_ONBOARD_SENSOR_WIDTH,HAL_OPTFLOW_ONBOARD_SENSOR_HEIGHT);
-          cv::Mat img_64 = image_yuv(myROI);
-          cv::imwrite("/data/ftp/internal_000/bebop_vertcam2.png", img_64);
-        }
+          cv::Mat frame_mat = image_yuv(myROI);
+
+          //hal.console->println("Next Step is vioflow");
+          _vioflow(frame_mat);
+
+        // Debug: Track Features in Image, draw Circles around Features and Save Image
+        //
+        //   //Track Features
+        //   //std::vector<int> status(n_features,2);
+        //   features_old=features_l_old;
+        //   int stereo = 0;
+        //   trackFeatures(frame_mat,frame_mat,features_l_old,features_l_old,status,stereo);
+        //
+        //   //Mark Features in image_count
+        //   int i=0;
+        //   while (i<n_features)
+        //    {
+        //       //hal.console->printf("Marking Feature #");
+        //       //hal.console->println(i+1);
+        //       cv::circle(frame_mat,features_l_old[i],5,CV_RGB(0,0,0),1);
+        //       i++;
+        //     }
+        //
+        //
+        //     i=0;
+        //     motion_old=motion;
+        //     motion.x=0;
+        //     motion.y=0;
+        //     n_active=0;
+        //
+        //
+        //     while (i<n_features)
+        //      {
+        //        if (status[i]==0)
+        //        {
+        //          status[i]=2;
+        //        }
+        //        else if (status[i]==1)
+        //        {
+        //          motion.x=motion.x+(features_l_old[i].x-features_old[i].x);
+        //          motion.y=motion.y+(features_l_old[i].y-features_old[i].y);
+        //          n_active++;
+        //        }
+        //        else if (status[i]==2)
+        //        {
+        //         status[i]=1;
+        //        }
+        //         i++;
+        //       }
+        //
+        //       motion.x=2*motion.x/n_active;
+        //       motion.y=2*motion.y/n_active;
+        //       n_active=0;
+        //       motion_print.x=-(motion.x+motion_old.x)/2+midpoint.x;
+        //       motion_print.y=-(motion.y+motion_old.y)/2+midpoint.y;
+        //
+        //       cv::arrowedLine(frame_mat,midpoint,motion_print,CV_RGB(0,0,0),3);
+        //       runtime=AP_HAL::millis()-start_time;
+        //       cv::rectangle(frame_mat,cv::Point(1,239),cv::Point(319,220),CV_RGB(255,255,255),-1);
+        //       cv::putText(frame_mat,"Time: "+std::to_string(runtime)+"ms",cv::Point(120,235),cv::FONT_HERSHEY_PLAIN,1,CV_RGB(0,0,0),1);
+        //
+        //
+          //cv::imwrite("/data/ftp/internal_000/vertcam/bebop_vertcam_"+std::to_string(image_count)+".bmp", frame_mat);
+          //hal_debug.console->println("Saved Picture!!");
+          image_count++;
+         }
 #endif
 
 
@@ -365,24 +634,24 @@ void OpticalFlow_Onboard::_run_optflow()
         gyro_rate.y = rate_y;
         gyro_rate.z = rate_z;
 
-#ifdef OPTICALFLOW_ONBOARD_RECORD_VIDEO
-        int fd = open(OPTICALFLOW_ONBOARD_VIDEO_FILE, O_CREAT | O_WRONLY
-                | O_APPEND, S_IRUSR | S_IWUSR | S_IRGRP |
-                S_IWGRP | S_IROTH | S_IWOTH);
-        if (fd != -1) {
-	        write(fd, video_frame.data, _sizeimage);
-#ifdef OPTICALFLOW_ONBOARD_RECORD_METADATAS
-            struct PACKED {
-                uint32_t timestamp;
-                float x;
-                float y;
-                float z;
-            } metas = { video_frame.timestamp, rate_x, rate_y, rate_z};
-            write(fd, &metas, sizeof(metas));
-#endif
-	        close(fd);
-        }
-#endif
+// #ifdef OPTICALFLOW_ONBOARD_RECORD_VIDEO
+//         int fd = open(OPTICALFLOW_ONBOARD_VIDEO_FILE, O_CREAT | O_WRONLY
+//                 | O_APPEND, S_IRUSR | S_IWUSR | S_IRGRP |
+//                 S_IWGRP | S_IROTH | S_IWOTH);
+//         if (fd != -1) {
+// 	        write(fd, video_frame.data, _sizeimage);
+// #ifdef OPTICALFLOW_ONBOARD_RECORD_METADATAS
+//             struct PACKED {
+//                 uint32_t timestamp;
+//                 float x;
+//                 float y;
+//                 float z;
+//             } metas = { video_frame.timestamp, rate_x, rate_y, rate_z};
+//             write(fd, &metas, sizeof(metas));
+// #endif
+// 	        close(fd);
+//         }
+// #endif
 
         /* compute gyro data and video frames
          * get flow rate to send it to the opticalflow driver

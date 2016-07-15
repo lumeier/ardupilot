@@ -24,12 +24,46 @@
 #include "Flow_PX4.h"
 #include "VideoIn.h"
 
+//Include libraries for OpenCV support
+#include <iostream>
+#include <fstream>
+#include "opencv2/core.hpp"
+#include "opencv2/videoio.hpp"
+#include "opencv2/video.hpp"
+#include "opencv2/highgui.hpp"
+#include "opencv2/imgproc.hpp"
+#include "trackFeatures.h"
+
+// Include header for VIO
+#include "vio/VIO.h"
+#include "assert.h"
+#include "vio/SLAM_includes.h"
+#include "vio/matlab_consts.h"
+#include "vio/Precision.h"
+#include "vio/SLAM_types.h"
+
+
 class Linux::OpticalFlow_Onboard : public AP_HAL::OpticalFlow {
 public:
     void init(AP_HAL::OpticalFlow::Gyro_Cb);
     bool read(AP_HAL::OpticalFlow::Data_Frame& frame);
 
 private:
+    //Added for VIO
+    void _vioflow(cv::Mat);
+    void _init_vioflow();
+    std::vector<FloatType> map;
+    std::vector<AnchorPose> anchor_poses;
+    RobotState robot_state;
+    std::vector<int> update_vec_;
+    CameraParameters vertcameraParams;
+    DUOParameters cameraParams;
+    NoiseParameters noiseParams;
+    VIOParameters vioParams;
+    double fps;
+    int vision_subsample;
+    bool auto_subsample;
+
     void _run_optflow();
     static void *_read_thread(void *arg);
     VideoIn* _videoin;
