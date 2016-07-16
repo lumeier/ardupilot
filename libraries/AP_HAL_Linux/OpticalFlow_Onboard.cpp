@@ -55,7 +55,8 @@ extern const AP_HAL::HAL& hal;
 //Initialize Rangefinder and SerialManager
 static AP_SerialManager serial_manager;
 static RangeFinder sonar {serial_manager};
-
+//static AP_InertialSensor &inertial_sensors;
+AP_InertialSensor &inertial_sensors = *AP_InertialSensor::get_instance();
 // Add own Hal object to plot debug vars:
 const AP_HAL::HAL& hal_debug = AP_HAL::get_HAL();
 uint32_t now = AP_HAL::millis();
@@ -78,6 +79,11 @@ void OpticalFlow_Onboard::init(AP_HAL::OpticalFlow::Gyro_Cb get_gyro)
 {
     //Set Start Time
     start_time=AP_HAL::millis();
+
+    //init Inertial Sensors
+    //AP_InertialSensor &inertial_sensors = *AP_InertialSensor::get_instance();
+    inertial_sensors.init(100);
+
 
     //Initialize Range Finder
     _init_rangefinder();
@@ -299,10 +305,11 @@ void OpticalFlow_Onboard::_vioflow(cv::Mat vertcam_frame)
     meas.acc[2]=-11.044;
 
     //Get Rangefinder measurements
-    sonar.update();
+    //sonar.update();
     //printf("Rangefinder Distance: %d\n",sonar.distance_cm());
 
-
+    //Print Acceleration measurements
+    _print_inertial_sensors(inertial_sensors);
 
     //double dt = 1/60.;
     int tic_predict = AP_HAL::millis();
@@ -451,9 +458,28 @@ void OpticalFlow_Onboard::_init_rangefinder()
 
   // initialise sensor, delaying to make debug easier
   hal.scheduler->delay(200);
-  sonar.init();
-  hal.console->printf("RangeFinder: %d devices detected\n", sonar.num_sensors());
+  //sonar.init();
+  //hal.console->printf("RangeFinder: %d devices detected\n", sonar.num_sensors());
 }
+
+void OpticalFlow_Onboard::_print_inertial_sensors(AP_InertialSensor ins_print)
+{
+  Vector3f accel;
+  Vector3f gyro;
+  ins_print.update();
+  ins_print.wait_for_sample();
+
+
+  // read samples from ins
+  ins_print.update();
+
+  accel = ins_print.get_accel(0);
+  gyro =  ins_print.get_gyro(0);
+
+  printf("Accel (%d) : X:%6.2f Y:%6.2f Z:%6.2f norm:%5.2f\n", ins_print.get_accel_health(0), accel.x, accel.y, accel.z, accel.length());
+  printf("Gyro (%d) : X:%6.2f Y:%6.2f Z:%6.2f\n", ins_print.get_gyro_health(0), gyro.x, gyro.y, gyro.z);
+}
+
 void OpticalFlow_Onboard::_run_optflow()
 {
     hal.console->println("Run Optflow");
@@ -654,6 +680,7 @@ void OpticalFlow_Onboard::_run_optflow()
         gyro_rate.x = rate_x;
         gyro_rate.y = rate_y;
         gyro_rate.z = rate_z;
+
 
 // #ifdef OPTICALFLOW_ONBOARD_RECORD_VIDEO
 //         int fd = open(OPTICALFLOW_ONBOARD_VIDEO_FILE, O_CREAT | O_WRONLY

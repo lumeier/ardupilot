@@ -4,6 +4,10 @@
 #Define Parameters
 FILE='AP_OpticalFlow_test'
 NAME='flow'
+
+#FILE='INS_generic'
+#NAME='ins'
+
 BUILD_PATH="$PWD/build/bebop/examples/"
 
 

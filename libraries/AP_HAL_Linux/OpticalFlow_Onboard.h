@@ -36,6 +36,8 @@
 
 //RangeFinder
 #include <AP_RangeFinder/AP_RangeFinder.h>
+//Inetial Sensors
+#include <AP_InertialSensor/AP_InertialSensor.h>
 
 // Include header for VIO
 #include "vio/VIO.h"
@@ -67,7 +69,7 @@ private:
     int vision_subsample;
     bool auto_subsample;
     void _init_rangefinder(); //Rangefinder Init_Function
-    double get_range();
+    void _print_inertial_sensors(AP_InertialSensor);
 
     void _run_optflow();
     static void *_read_thread(void *arg);

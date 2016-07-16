@@ -17,8 +17,7 @@ static void display_offsets_and_scaling();
 static void run_test();
 
 void setup(void)
-{
-    hal.console->println("AP_InertialSensor startup...");
+{    hal.console->println("AP_InertialSensor startup...");
 
     ins.init(100);
 
