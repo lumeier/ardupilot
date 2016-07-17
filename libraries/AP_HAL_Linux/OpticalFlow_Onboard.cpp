@@ -42,6 +42,12 @@ std::vector<cv::Point2f> features_old(n_features,point_a);
 std::vector<int> status(n_features,2);
 int n_active=0;
 
+//Gyro & Accel Variables
+Vector3f accel;
+Vector3f gyro;
+
+
+
 
 
 #include "CameraSensor_Mt9v117.h"
@@ -60,9 +66,12 @@ AP_InertialSensor &inertial_sensors = *AP_InertialSensor::get_instance();
 // Add own Hal object to plot debug vars:
 const AP_HAL::HAL& hal_debug = AP_HAL::get_HAL();
 uint32_t now = AP_HAL::millis();
+
+
+//Simulation start time for Logging & image_counter
+uint32_t start_time=0;
+uint32_t runtime=0;
 uint32_t image_count=0;
-uint32_t start_time;
-uint32_t runtime;
 
 
 #ifdef OPTICALFLOW_ONBOARD_RECORD_OPENCV_VIDEO
@@ -81,7 +90,6 @@ void OpticalFlow_Onboard::init(AP_HAL::OpticalFlow::Gyro_Cb get_gyro)
     start_time=AP_HAL::millis();
 
     //init Inertial Sensors
-    //AP_InertialSensor &inertial_sensors = *AP_InertialSensor::get_instance();
     inertial_sensors.init(100);
 
 
@@ -294,22 +302,49 @@ void OpticalFlow_Onboard::_vioflow(cv::Mat vertcam_frame)
     //**********************************************************************
     //Gyro will be integrated later, no prediction before that
     //Accelerometer is not used, so no prediction
+
+    //Get measurements from Gyro
+
+    inertial_sensors.update();
+    inertial_sensors.wait_for_sample();
+    inertial_sensors.update();
+
+    accel = inertial_sensors.get_accel(0);
+    gyro =  inertial_sensors.get_gyro(0);
+
     VIOMeasurements meas;
 
-    meas.gyr[0]=-0.0699;
-    meas.gyr[1]=-0.0343;
-    meas.gyr[2]=-0.0357;
+    meas.gyr[0]=gyro.x;
+    meas.gyr[1]=gyro.y;
+    meas.gyr[2]=gyro.z;
     //
-    meas.acc[0]=0.2943;
-    meas.acc[1]=0.0026;
-    meas.acc[2]=-11.044;
+    meas.acc[0]=accel.x;
+    meas.acc[1]=accel.y;
+    meas.acc[2]=accel.z;
+
+
+    // meas.gyr[0]=-0.00001;
+    // meas.gyr[1]=-0.00001;
+    // meas.gyr[2]=-0.00001;
+    // //
+    // meas.acc[0]=0.40;
+    // meas.acc[1]=-0.25;
+    // meas.acc[2]=-10.19;
+
+    // meas.gyr[0]=-0.0699;
+    // meas.gyr[1]=-0.0343;
+    // meas.gyr[2]=-0.0357;
+    // //
+    // meas.acc[0]=0.2943;
+    // meas.acc[1]=0.0026;
+    // meas.acc[2]=-11.044;
 
     //Get Rangefinder measurements
     //sonar.update();
     //printf("Rangefinder Distance: %d\n",sonar.distance_cm());
 
     //Print Acceleration measurements
-    _print_inertial_sensors(inertial_sensors);
+    //_print_inertial_sensors(inertial_sensors);
 
     //double dt = 1/60.;
     int tic_predict = AP_HAL::millis();
@@ -366,7 +401,7 @@ void OpticalFlow_Onboard::_vioflow(cv::Mat vertcam_frame)
     int tic_update = AP_HAL::millis();
     vio.update(update_vec_, z_all_l, z_all_r, robot_state, map, anchor_poses, delayedStatus);
     int duration_update = (AP_HAL::millis() - tic_update);
-    //printf("Duration update: %d ms\n",duration_update);
+    printf("Duration update: %d ms\n",duration_update);
 
     //Debug: Print Robot Position
     // printf("Robot Position: X: ");
@@ -375,6 +410,9 @@ void OpticalFlow_Onboard::_vioflow(cv::Mat vertcam_frame)
     // printf("%f",robot_state.pos[1]);
     // printf(" Z: ");
     // printf("%f\n",robot_state.pos[2]);
+
+    // Logging: timestamp, image #, Accel.x, Accel.y, Accel.z, Gyro.x, Gyro.y, Gyro.z, Rangefinder
+
 }
 
 void OpticalFlow_Onboard::_init_vioflow() {
