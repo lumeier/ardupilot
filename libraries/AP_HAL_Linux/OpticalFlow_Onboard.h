@@ -55,7 +55,7 @@ public:
 
 private:
     //Added for VIO
-    void _vioflow(cv::Mat);
+    Vector3f _vioflow(cv::Mat, int count);
     void _init_vioflow();
     std::vector<FloatType> map;
     std::vector<AnchorPose> anchor_poses;
@@ -69,7 +69,7 @@ private:
     int vision_subsample;
     bool auto_subsample;
     void _init_rangefinder(); //Rangefinder Init_Function
-    void _print_inertial_sensors(AP_InertialSensor);
+    //void _print_inertial_sensors(AP_InertialSensor);
 
     void _run_optflow();
     static void *_read_thread(void *arg);

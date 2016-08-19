@@ -28,7 +28,7 @@ public:
     void init(void);
     void update(void);
 private:
-    AP_AHRS &_ahrs;
-    void _get_gyro(float&, float&, float&);
+    AP_AHRS_NavEKF &_ahrs;
+    void _get_gyro(float&, float&, float&, float&);
     uint32_t _last_read_ms;
 };

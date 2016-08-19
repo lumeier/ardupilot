@@ -17,6 +17,7 @@
 #include <AP_HAL/AP_HAL.h>
 
 #include "OpticalFlow.h"
+#include <stdio.h>
 
 #if CONFIG_HAL_BOARD == HAL_BOARD_LINUX &&\
     (CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_BEBOP ||\
@@ -41,7 +42,7 @@ void AP_OpticalFlow_Onboard::init(void)
     /* register callback to get gyro data */
     hal.opticalflow->init(
             FUNCTOR_BIND_MEMBER(&AP_OpticalFlow_Onboard::_get_gyro,
-                                void, float&, float&, float&));
+                                void, float&, float&, float&, float&));
 }
 
 void AP_OpticalFlow_Onboard::update()
@@ -74,11 +75,16 @@ void AP_OpticalFlow_Onboard::update()
                            float(data_frame.delta_time) *
                            data_frame.pixel_flow_y_integral;
 
-        state.bodyRate.x = 1.0f / float(data_frame.delta_time) *
-                           data_frame.gyro_x_integral;
+        // state.bodyRate.x = 1.0f / float(data_frame.delta_time) *
+        //                    data_frame.gyro_x_integral;
+        //
+        // state.bodyRate.y = 1.0f / float(data_frame.delta_time) *
+        //                    data_frame.gyro_y_integral;
 
-        state.bodyRate.y = 1.0f / float(data_frame.delta_time) *
-                           data_frame.gyro_y_integral;
+        state.bodyRate.x = data_frame.gyro_x_integral;
+        state.bodyRate.y = data_frame.gyro_y_integral;
+//        printf("state.bodyRate.x: %lf",state.bodyRate.x);
+
     } else {
         state.flowRate.zero();
         state.bodyRate.zero();
@@ -102,12 +108,17 @@ void AP_OpticalFlow_Onboard::update()
 }
 
 void AP_OpticalFlow_Onboard::_get_gyro(float &rate_x, float &rate_y,
-                                       float &rate_z)
+                                       float &rate_z, float &hagl)
 {
     Vector3f rates = _ahrs.get_gyro();
     rate_x = rates.x;
     rate_y = rates.y;
     rate_z = rates.z;
+    //printf("x %lf y %lf z%lf\n",rate_x,rate_y,rate_z);
+    float height;
+    _ahrs.get_hagl(height);
+    hagl=height;
+    //printf("Height: %lf\n",height);
 }
 
 #endif

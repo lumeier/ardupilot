@@ -26,7 +26,7 @@ public:
         uint8_t quality;
     };
 
-    FUNCTOR_TYPEDEF(Gyro_Cb, void, float&, float&, float&);
+    FUNCTOR_TYPEDEF(Gyro_Cb, void, float&, float&, float&, float&);
 
     virtual void init(Gyro_Cb) = 0;
     virtual bool read(Data_Frame& frame) = 0;

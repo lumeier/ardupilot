@@ -1,0 +1,28 @@
+#!/bin/bash
+# This Script will make the example Sketch and will Upload it to the Bebop drone
+
+#Define Parameters
+FILE='AP_OpticalFlow_test'
+NAME='flow'
+
+#FILE='INS_generic'
+#NAME='ins'
+
+BUILD_PATH="/home/lumeier/bebop/ardupilot/build/bebop/bin"
+
+
+
+#Compile for bebop and strip binaries
+#alias waf="$PWD/modules/waf/waf-light"
+$PWD/modules/waf/waf-light configure --board=bebop
+$PWD/modules/waf/waf-light --targets bin/arducopter-quad
+arm-linux-gnueabihf-strip $BUILD_PATH/arducopter-quad -o $BUILD_PATH/arducopter
+
+#Connect via ftp and upload file
+adb disconnect 192.168.43.1:9050
+adb disconnect 192.168.42.1:9050
+adb connect 192.168.43.1:9050
+sleep 0.2
+adb shell mount -o remount,rw /
+sleep 0.2
+adb push $BUILD_PATH/arducopter /usr/bin
