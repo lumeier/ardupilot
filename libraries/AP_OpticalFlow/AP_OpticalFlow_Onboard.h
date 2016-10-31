@@ -29,6 +29,6 @@ public:
     void update(void);
 private:
     AP_AHRS_NavEKF &_ahrs;
-    void _get_gyro(float&, float&, float&, float&);
+    void _get_sensors(float&, float&, float&, float&, float&, float&, uint16_t&);
     uint32_t _last_read_ms;
 };

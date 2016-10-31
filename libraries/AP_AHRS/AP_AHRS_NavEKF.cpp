@@ -32,6 +32,7 @@ extern const AP_HAL::HAL& hal;
 AP_AHRS_NavEKF::AP_AHRS_NavEKF(AP_InertialSensor &ins, AP_Baro &baro, AP_GPS &gps, RangeFinder &rng,
                                NavEKF &_EKF1, NavEKF2 &_EKF2, Flags flags) :
     AP_AHRS_DCM(ins, baro, gps),
+    _rng(rng),
     EKF1(_EKF1),
     EKF2(_EKF2),
     _ekf_flags(flags)
@@ -46,6 +47,12 @@ const Vector3f &AP_AHRS_NavEKF::get_gyro(void) const
         return AP_AHRS_DCM::get_gyro();
     }
     return _gyro_estimate;
+}
+
+// Return the distance measured by the Rangefinder
+const uint16_t AP_AHRS_NavEKF::get_range(void) const
+{
+     return _rng.distance_cm();
 }
 
 const Matrix3f &AP_AHRS_NavEKF::get_rotation_body_to_ned(void) const
@@ -364,7 +371,7 @@ bool AP_AHRS_NavEKF::get_position(struct Location &loc) const
         return true;
     }
 #endif
-        
+
     default:
         break;
     }
@@ -710,7 +717,7 @@ uint8_t AP_AHRS_NavEKF::ekf_type(void) const
         type = 2;
     }
 #endif
-    
+
     // check for invalid type
 #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
     if (type > 2 && type != EKF_TYPE_SITL) {
@@ -1120,7 +1127,7 @@ void AP_AHRS_NavEKF::send_ekf_status_report(mavlink_channel_t chan)
     case EKF_TYPE2:
     default:
         return EKF2.send_status_report(chan);
-    }    
+    }
 }
 
 // passes a reference to the location of the inertial navigation origin
@@ -1301,4 +1308,3 @@ bool AP_AHRS_NavEKF::have_ekf_logging(void) const
 }
 
 #endif // AP_AHRS_NAVEKF_AVAILABLE
-

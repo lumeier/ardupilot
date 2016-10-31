@@ -1,3 +1,4 @@
+
 /*
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -44,12 +45,15 @@ std::vector<int> status(n_features,2);
 int n_active=0;
 
 //Gyro & Accel Variables
+Vector3f gyro_rate;
+Vector2f flow_rate;
 Vector3f accel;
 Vector3f gyro;
+float dt;
 uint32_t range;
 Vector3f vio_vel;
-double tic_predict_old =0.0;
-float hagl;
+float tic_predict_old =0.0;
+uint16_t range_cm;
 //Variables and Parameters for velocity moving average filter
 int n_avg=1;
 std::deque<double> avg_bin_x;
@@ -57,7 +61,8 @@ double avg_x=0;
 std::deque<double> avg_bin_y;
 double avg_y=0;
 std::deque<Vector3f> gyro_delay_cont;
-int gyro_delay=6;
+std::deque<Vector3f> accel_delay_cont;
+int gyro_delay=2;
 
 
 
@@ -70,11 +75,6 @@ int gyro_delay=6;
 
 extern const AP_HAL::HAL& hal;
 
-//Initialize Rangefinder and SerialManager
- // static AP_SerialManager serial_manager;
- // static RangeFinder sonar {serial_manager};
-//static AP_InertialSensor &inertial_sensors;
-//AP_InertialSensor &inertial_sensors = *AP_InertialSensor::get_instance();
 // Add own Hal object to plot debug vars:
 const AP_HAL::HAL& hal_debug = AP_HAL::get_HAL();
 uint32_t now = AP_HAL::millis();
@@ -87,24 +87,29 @@ uint32_t image_count=0;
 uint32_t timestamp=0;
 int vio_count=0;
 
-
-#ifdef OPTICALFLOW_ONBOARD_RECORD_OPENCV_VIDEO
-  //cv::Size size_vid = cv::Size(320,240);
-  //cv::VideoWriter vertcam("/data/ftp/internal_000/vert_cam.avi",cv::VideoWriter::fourcc('D','I','V','X'),10,size_vid,false);
-//  cv::VideoWriter vertcam("/data/ftp/internal_000/vert_cam.avi",CV_FOURCC('D','I','V','X'),10,size_vid,false);
-#endif
-
 using namespace Linux;
 VIO vio;
 
 
-void OpticalFlow_Onboard::init(AP_HAL::OpticalFlow::Gyro_Cb get_gyro)
+void OpticalFlow_Onboard::init(AP_HAL::OpticalFlow::Gyro_Cb get_sensors)
 {
-  //Empty earlier logfile and write header
-    std::ofstream log_file;
-    log_file.open ("/data/ftp/internal_000/vio_logs/vio_log.csv");
-    log_file << "timestamp,image_nr,vel.x,vel.y,vel.z,gyro.x,gyro.y,gyro.z,range\n";
-    log_file.close();
+    //Empty earlier logfile and write header
+    //std::ofstream log_file;
+
+    //"/dev/shm/log_img_"+std::to_string(image_count)+".bmp"
+    //log_file.open ("/data/ftp/internal_000/vio_logs/vio_log.csv");
+
+
+
+    // log_file.open ("/dev/shm/vio_log.csv");
+    // log_file << "timestamp,image_nr,vel.x,vel.y,vel.z,gyro.x,gyro.y,gyro.z,range\n";
+    // //log_file.close();
+    // printf("csv initialized\n");
+    //
+    // std::string img_path="/data/ftp/internal_000/vio_logs/images/log_img.bin";
+    // fp = fopen(img_path.c_str(), "w");
+
+
 
     vio_vel[0]=0;
     vio_vel[1]=0;
@@ -138,7 +143,7 @@ void OpticalFlow_Onboard::init(AP_HAL::OpticalFlow::Gyro_Cb get_gyro)
         return;
     }
 
-    _get_gyro = get_gyro;
+    _get_sensors = get_sensors;
     _videoin = new VideoIn;
     const char* device_path = HAL_OPTFLOW_ONBOARD_VDEV_PATH;
     memtype = V4L2_MEMORY_MMAP;
@@ -355,6 +360,7 @@ Vector3f OpticalFlow_Onboard::_vioflow(cv::Mat vertcam_frame,int count)
     meas.acc[1]=accel.y;
     meas.acc[2]=accel.z;
 
+    //printf("Accelerometer Measurements: accel.x: %f accel.y: %f accel.z: %f\n",accel_delay_cont[0].x,accel_delay_cont[0].y,accel_delay_cont[0].z);
 
     // meas.gyr[0]=-0.00001;
     // meas.gyr[1]=-0.00001;
@@ -380,16 +386,20 @@ Vector3f OpticalFlow_Onboard::_vioflow(cv::Mat vertcam_frame,int count)
 
     //double dt = 1/60.;
 
-    double tic_predict = AP_HAL::millis()/1000.;
-    double dt=tic_predict-tic_predict_old;
+    float tic_predict = AP_HAL::millis()/1000.;
+    dt=tic_predict-tic_predict_old;
     tic_predict_old=tic_predict;
     //double dt= 0.025;
-    printf("dt= %lf\n", dt);
+    //printf("dt= %lf\n", dt);
+
+
+
     for (int i_pred=0;i_pred<1;i_pred++)
     {
       //printf("$$$$$$$- Sensor Prediction -$$$$$$$$$\n");
       vio.predict(meas,dt);
     }
+
     // int duration_predict = (AP_HAL::millis() - tic_predict);
 
     }
@@ -420,9 +430,10 @@ Vector3f OpticalFlow_Onboard::_vioflow(cv::Mat vertcam_frame,int count)
 
 
 
-
+    int tic_flow = AP_HAL::millis();
     trackFeatures(vertcam_frame,vertcam_frame,features_l,features_r,update_vec_,stereo);
-
+    int duration_flow = (AP_HAL::millis() - tic_flow);
+    //printf("track time: %d\n",duration_flow);
     for (int i = 0; i < features_l.size(); i++) {
         if (i<48){
 
@@ -453,7 +464,7 @@ Vector3f OpticalFlow_Onboard::_vioflow(cv::Mat vertcam_frame,int count)
     // if (meas.sonar<0.1)
     //   {meas.sonar=0.1;}
 
-    meas.sonar=hagl;
+    meas.sonar=range_cm/100.;
     if (meas.sonar<0.1)
       {meas.sonar=0.1;}
     //printf("sonar measurement: %lf\n",meas.sonar);
@@ -462,10 +473,10 @@ Vector3f OpticalFlow_Onboard::_vioflow(cv::Mat vertcam_frame,int count)
 
     vio.setParams(cameraParams, noiseParams, vioParams);
 
-    int tic_update = AP_HAL::millis();
+    //int tic_update = AP_HAL::millis();
     vio.update(update_vec_, z_all_l, z_all_r, robot_state, map, anchor_poses, delayedStatus,meas);
-    int duration_update = (AP_HAL::millis() - tic_update);
-
+    //int duration_update = (AP_HAL::millis() - tic_update);
+    //printf("update time: %d\n",duration_update);
     //moving average on velocities
 
     //in camera x direction
@@ -487,8 +498,6 @@ Vector3f OpticalFlow_Onboard::_vioflow(cv::Mat vertcam_frame,int count)
     }
     avg_x=sum_x/avg_bin_x.size();
     avg_y=sum_y/avg_bin_y.size();
-
-
 
     // // Debug: Print Robot Position
     // printf("Robot Velocity: X: ");
@@ -516,16 +525,44 @@ Vector3f OpticalFlow_Onboard::_vioflow(cv::Mat vertcam_frame,int count)
     // Logging: timestamp, image #, Accel.x, Accel.y, Accel.z, Gyro.x, Gyro.y, Gyro.z, Rangefinder
     timestamp=AP_HAL::millis()-start_time;
     //printf("Log: Timestamp: %d image#: %d Accel: %lf %lf %lf Gyro: %lf %lf %lf Range: %d\n",timestamp,image_count,accel.x,accel.y,accel.z,gyro.x,gyro.y,gyro.z,meas.sonar);
-    std::ofstream log_file;
-    log_file.open ("/data/ftp/internal_000/vio_logs/vio_log.csv",std::ios_base::app);
+    //std::ofstream log_file;
+    //log_file.open ("/data/ftp/internal_000/vio_logs/vio_log.csv",std::ios_base::app);
     //log_file << "timestamp,image_nr,acc.x,acc.y,acc.z,gyro.x,gyro.y,gyro.z,range\n";
-    log_file << std::to_string(timestamp)+","+std::to_string(image_count)+","+std::to_string(vel_output[0])+","+
-                std::to_string(vel_output[1])+","+std::to_string(vel_output[2])+","+std::to_string(gyro.x)+","+
-                std::to_string(gyro.y)+","+std::to_string(gyro.z)+","+std::to_string(meas.sonar)+"\n";
-    log_file.close();
+
+    // //Calculate Optical Flow velocities
+    float fx=409.72;
+    float fy=306.48;
+
+    float flow_x_trans=flow_rate.x/fx*meas.sonar/dt*4;
+    float flow_x_rot=gyro_delay_cont[0].x*meas.sonar;
+    float flow_y_trans=flow_rate.y/fy*meas.sonar/dt*4;
+    float flow_y_rot=gyro_delay_cont[0].y*meas.sonar;
+    float flow_x=flow_x_trans-flow_x_rot;
+    float flow_y=flow_y_trans-flow_y_rot;
+    float flow_x_ekf=(0.95*vel_output[0]/meas.sonar+gyro_delay_cont[0].y)*fx;
+    float flow_y_ekf=(-0.95*vel_output[1]/meas.sonar+gyro_delay_cont[0].x)*fy;
+
+    //printf("flow_y_ekf: %lf\n",flow_y_ekf);
+    //printf("Flow x trans: %f Flow x rot: %f Flow y trans: %f Flow y rot: %f\n",flow_x_trans,flow_x_rot,flow_y_trans,flow_y_rot);
+    //printf("Flow x: %f Flow y: %f\n",flow_x,flow_y);
 
 
+    // log_file << std::to_string(timestamp)+","+std::to_string(image_count)+","+std::to_string(vel_output[0])+","+
+    //             std::to_string(vel_output[1])+","+std::to_string(vel_output[2])+","+std::to_string(gyro.x)+","+
+    //             std::to_string(gyro.y)+","+std::to_string(gyro.z)+","+std::to_string(accel.x)+","+
+    //             std::to_string(accel.y)+","+std::to_string(accel.z)+","+std::to_string(flow_x)+","+std::to_string(flow_y)+
+    //             ","+std::to_string(flow_x_trans)+","+std::to_string(flow_y_trans)+","+std::to_string(meas.sonar)+"\n";
 
+    // log_file << std::to_string(timestamp)+","+std::to_string(image_count)+","+std::to_string(vel_output[0])+","+
+    //             std::to_string(vel_output[1])+","+std::to_string(vel_output[2])+","+std::to_string(gyro.x)+","+
+    //             std::to_string(gyro.y)+","+std::to_string(gyro.z)+","+std::to_string(accel.x)+","+
+    //             std::to_string(accel.y)+","+std::to_string(accel.z)+","+std::to_string(meas.sonar)+"\n";
+
+    //log_file.close();
+
+
+    vel_output[0]=flow_x_ekf;
+    vel_output[1]=flow_y_ekf;
 
     return vel_output;
 }
@@ -543,8 +580,8 @@ void OpticalFlow_Onboard::_init_vioflow() {
       noiseParams.process_noise.qwo = 0.000;              // noise gyro bias
       noiseParams.process_noise.qao = 0.000;              // noise acc bias
       noiseParams.process_noise.qR_ci =0.001*0;           // noise q_R_ci
-      noiseParams.inv_depth_initial_unc = 0.001;          // noise inverse depth initial uncertainty
-      noiseParams.image_noise = 1;                        // image noise
+      noiseParams.inv_depth_initial_unc = 0.01;          // noise inverse depth initial uncertainty
+      noiseParams.image_noise = 2;                        // image noise
 
       //noiseParams.gyro_bias_initial_unc= [0.01 0.01 0.01];// gyro bias initial uncertainty vector
       noiseParams.gyro_bias_initial_unc[0]= 0.01;
@@ -637,8 +674,8 @@ void OpticalFlow_Onboard::_run_optflow()
 {
     hal.console->println("Run Optflow");
     float rate_x, rate_y, rate_z;
-    Vector3f gyro_rate;
-    Vector2f flow_rate;
+    float acc_x,acc_y,acc_z;
+
     VideoIn::Frame video_frame;
     uint32_t convert_buffer_size = 0, output_buffer_size = 0;
     uint32_t crop_left = 0, crop_top = 0;
@@ -702,15 +739,15 @@ void OpticalFlow_Onboard::_run_optflow()
 
 
 
-      while (now>AP_HAL::millis()-10)
-      {
-      int wait = 10-(AP_HAL::millis()-now);
-      if (wait<0)
-      {wait =0;}
-      printf("Wait for %d ms\n",wait);
-      //delay(wait);
-      usleep(wait*1000);
-      }
+      // while (now>AP_HAL::millis()-20)
+      // {
+      // int wait = 20-(AP_HAL::millis()-now);
+      // if (wait<0)
+      // {wait =0;}
+      // printf("Wait for %d ms\n",wait);
+      // //delay(wait);
+      // usleep(wait*1000);
+      // }
       //printf("Finished waiting\n");
       now=AP_HAL::millis();
 
@@ -743,27 +780,50 @@ void OpticalFlow_Onboard::_run_optflow()
 
         //hal.console->println(tic_fps);
 
+          //Save raw image_yuv
 
+          //int outfd = open("/data/ftp/internal_000/vio_logs/images/log_img_"+std::to_string(image_count)+".img", O_RDWR);
+          //FILE * fp;
+          //std::string img_path="/data/ftp/internal_000/vio_logs/images/log_img.bin";
+          //fp = fopen(img_path.c_str(), "w");
+
+
+          //printf("_sizeimage: %d\n",_sizeimage);
+          // fwrite(video_frame.data, _sizeimage,1,fp);
+
+          //fclose(fp);
           //Load Image to Mat
           cv::Mat image_yuv=cv::Mat(HAL_OPTFLOW_ONBOARD_SENSOR_HEIGHT + HAL_OPTFLOW_ONBOARD_SENSOR_HEIGHT/2,HAL_OPTFLOW_ONBOARD_SENSOR_WIDTH, CV_8UC1, video_frame.data);
           cv::Rect myROI(0,0,HAL_OPTFLOW_ONBOARD_SENSOR_WIDTH,HAL_OPTFLOW_ONBOARD_SENSOR_HEIGHT);
           cv::Mat frame_mat = image_yuv(myROI);
-          cv::imwrite("/data/ftp/internal_000/vio_logs/images/log_img_"+std::to_string(image_count)+".bmp", frame_mat);
+          //cv::imwrite("/data/ftp/internal_000/vio_logs/images/log_img_"+std::to_string(image_count)+".bmp", frame_mat);
+          //cv::imwrite("/dev/shm/log_img_"+std::to_string(image_count)+".bmp", frame_mat);
+          //else if (image_count>=2200 && image_count <3500)
+                //{cv::imwrite("/tmp/logs/log_img_"+std::to_string(image_count)+".bmp", frame_mat);}
+          //printf("OpenCV: %s", cv::getBuildInformation().c_str());
           //hal.console->println("Next Step is vioflow");
 
           /* read gyro data from EKF via the opticalflow driver */
-          _get_gyro(rate_x, rate_y, rate_z,hagl);
+          _get_sensors(rate_x, rate_y, rate_z,acc_x,acc_y,acc_z,range_cm);
           //printf("Height: %lf\n",hagl);
           gyro_rate.x = rate_x;
           gyro_rate.y = rate_y;
           gyro_rate.z = rate_z;
           gyro.x=rate_x;
           gyro.y=rate_y;
-          gyro.z=rate_z;
+          gyro.z=0;//rate_z;
           gyro_delay_cont.push_back(gyro);
 
           if (gyro_delay_cont.size()>gyro_delay)
           {gyro_delay_cont.pop_front();}
+
+          accel.x=acc_x;
+          accel.y=acc_y;
+          accel.z=acc_z;
+          accel_delay_cont.push_back(accel);
+
+          if (accel_delay_cont.size()>gyro_delay)
+          {accel_delay_cont.pop_front();}
 
 
           vio_vel=_vioflow(frame_mat,vio_count);
@@ -831,7 +891,7 @@ void OpticalFlow_Onboard::_run_optflow()
 
 #endif
 
-
+    int tic_update = AP_HAL::millis();
         if (_shrink_by_software) {
             /* shrink_8bpp() will shrink a selected area using the offsets,
              * therefore, we don't need the crop. */
@@ -858,7 +918,7 @@ void OpticalFlow_Onboard::_run_optflow()
             _last_video_frame = video_frame;
             continue;
         }
-
+//    int tic_update = AP_HAL::millis();
 
 
 
@@ -889,9 +949,14 @@ void OpticalFlow_Onboard::_run_optflow()
                                    video_frame.timestamp -
                                    _last_video_frame.timestamp,
                                    &flow_rate.x, &flow_rate.y);
+        qual=255;
+        //flow_rate.x=0;
+        //flow_rate.y=0;
+
 
     //  printf("flow_rate %lf|%lf  Gyro: %lf %lf\n",flow_rate.x,flow_rate.y,gyro_rate.x,gyro_rate.y);
-
+    int duration_update = (AP_HAL::millis() - tic_update);
+  //  printf("shrinkflow time: %d\n",duration_update);
 
         /* fill data frame for upper layers */
         pthread_mutex_lock(&_mutex);
@@ -908,9 +973,11 @@ void OpticalFlow_Onboard::_run_optflow()
                                   (video_frame.timestamp -
                                   _last_video_frame.timestamp);
 
-       _gyro_x_integral       = vio_vel[0];
-       _gyro_y_integral       = vio_vel[1];
-       _integration_timespan += 10;
+        _pixel_flow_x_integral = vio_vel[0];
+        _pixel_flow_y_integral = vio_vel[1];
+       _gyro_x_integral       = gyro_delay_cont[0].x;
+       _gyro_y_integral       = gyro_delay_cont[0].y;
+       _integration_timespan += 15;
       //printf("Velocity Sent: %lf %lf\n",_gyro_x_integral,_gyro_y_integral);
 
 

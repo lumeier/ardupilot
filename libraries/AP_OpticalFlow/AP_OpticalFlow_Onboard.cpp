@@ -41,8 +41,8 @@ void AP_OpticalFlow_Onboard::init(void)
 {
     /* register callback to get gyro data */
     hal.opticalflow->init(
-            FUNCTOR_BIND_MEMBER(&AP_OpticalFlow_Onboard::_get_gyro,
-                                void, float&, float&, float&, float&));
+            FUNCTOR_BIND_MEMBER(&AP_OpticalFlow_Onboard::_get_sensors,
+                                void, float&, float&, float&, float&, float&, float&, uint16_t&));
 }
 
 void AP_OpticalFlow_Onboard::update()
@@ -67,13 +67,13 @@ void AP_OpticalFlow_Onboard::update()
         float flowScaleFactorX = 1.0f + 0.001f * flowScaler.x;
         float flowScaleFactorY = 1.0f + 0.001f * flowScaler.y;
 
-        state.flowRate.x = flowScaleFactorX * 1000.0f /
-                           float(data_frame.delta_time) *
-                           data_frame.pixel_flow_x_integral;
-
-        state.flowRate.y = flowScaleFactorY * 1000.0f /
-                           float(data_frame.delta_time) *
-                           data_frame.pixel_flow_y_integral;
+        // state.flowRate.x = flowScaleFactorX * 1000.0f /
+        //                    float(data_frame.delta_time) *
+        //                    data_frame.pixel_flow_x_integral;
+        //
+        // state.flowRate.y = flowScaleFactorY * 1000.0f /
+        //                    float(data_frame.delta_time) *
+        //                    data_frame.pixel_flow_y_integral;
 
         // state.bodyRate.x = 1.0f / float(data_frame.delta_time) *
         //                    data_frame.gyro_x_integral;
@@ -81,8 +81,14 @@ void AP_OpticalFlow_Onboard::update()
         // state.bodyRate.y = 1.0f / float(data_frame.delta_time) *
         //                    data_frame.gyro_y_integral;
 
-        state.bodyRate.x = data_frame.gyro_x_integral;
+        float fx=409.72;
+        float fy=306.48;
+
+        state.flowRate.y = data_frame.pixel_flow_x_integral/fx;
+        state.flowRate.x = data_frame.pixel_flow_y_integral/fy;
+        //printf("flowx: %lf\n",state.flowRate.x);
         state.bodyRate.y = data_frame.gyro_y_integral;
+        state.bodyRate.x = data_frame.gyro_x_integral;
 //        printf("state.bodyRate.x: %lf",state.bodyRate.x);
 
     } else {
@@ -107,17 +113,25 @@ void AP_OpticalFlow_Onboard::update()
 #endif
 }
 
-void AP_OpticalFlow_Onboard::_get_gyro(float &rate_x, float &rate_y,
-                                       float &rate_z, float &hagl)
+void AP_OpticalFlow_Onboard::_get_sensors(float &rate_x, float &rate_y,
+                                       float &rate_z, float &acc_x, float &acc_y, float &acc_z, uint16_t &range_cm)
 {
     Vector3f rates = _ahrs.get_gyro();
+    range_cm=_ahrs.get_range();
+
     rate_x = rates.x;
     rate_y = rates.y;
     rate_z = rates.z;
+
+    acc_x= _ahrs.get_ins().get_accel().x;
+    acc_y= _ahrs.get_ins().get_accel().y;
+    acc_z= _ahrs.get_ins().get_accel().z;
+
+    //printf("ahrs.get_range: %ld acc_x %f acc_y: %f acc_z: %f\n",range_cm, _ahrs.get_ins().get_accel().x,_ahrs.get_ins().get_accel().y,_ahrs.get_ins().get_accel().z);
     //printf("x %lf y %lf z%lf\n",rate_x,rate_y,rate_z);
-    float height;
-    _ahrs.get_hagl(height);
-    hagl=height;
+    // float height;
+    // _ahrs.get_hagl(height);
+    // hagl=height;
     //printf("Height: %lf\n",height);
 }
 

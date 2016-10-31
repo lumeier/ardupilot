@@ -52,6 +52,8 @@ class Linux::OpticalFlow_Onboard : public AP_HAL::OpticalFlow {
 public:
     void init(AP_HAL::OpticalFlow::Gyro_Cb);
     bool read(AP_HAL::OpticalFlow::Data_Frame& frame);
+    FILE * fp;
+    std::ofstream log_file;
 
 private:
     //Added for VIO
@@ -69,7 +71,6 @@ private:
     int vision_subsample;
     bool auto_subsample;
     void _init_rangefinder(); //Rangefinder Init_Function
-    //void _print_inertial_sensors(AP_InertialSensor);
 
     void _run_optflow();
     static void *_read_thread(void *arg);
@@ -97,6 +98,6 @@ private:
     float _gyro_y_integral;
     uint32_t _integration_timespan;
     uint8_t _surface_quality;
-    AP_HAL::OpticalFlow::Gyro_Cb _get_gyro;
+    AP_HAL::OpticalFlow::Gyro_Cb _get_sensors;
     Vector3f _last_gyro_rate;
 };

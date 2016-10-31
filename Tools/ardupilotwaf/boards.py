@@ -102,6 +102,8 @@ class Board:
 
         env.CXXFLAGS += [
             '-std=gnu++11',
+	    '-mcpu=cortex-a9',
+	    '-mfpu=neon',
 
             '-fdata-sections',
             '-ffunction-sections',
@@ -313,17 +315,7 @@ class bebop(linux):
         )
         env.STATIC_LINKING = True
 
-# # Add additional Libraries for Bebop (currently: Opencv & dependencies)
-#         env.LIB += [
-#             'm',
-#             'opencv_highgui',
-#             'opencv_imgcodecs',
-#             'opencv_video',
-#             'opencv_imgproc',
-#             'opencv_core',
-#             'libpng',
-#             'zlib',
-#         ]
+# # Added additional Libraries for Bebop (currently: Opencv & dependencies)
 
         env.LIB += [
         'track_features',
@@ -344,6 +336,7 @@ class bebop(linux):
         'opencv_flann',
         'opencv_core',
 # 3rd party Libraries
+        'tbb',
         'track_features',
         'zlib',
         'libpng',
@@ -352,10 +345,11 @@ class bebop(linux):
         'm',
         'pthread',
         'rt',
-# Test Matlab coder library
+#Matlab coder library
         'vioclass',
-        'vioflow',
-        ]
+	    'vioflow',
+	    'mw_neon',
+	]
 
 class raspilot(linux):
     toolchain = 'arm-linux-gnueabihf'

@@ -62,6 +62,7 @@ public:
 
     // return the smoothed gyro vector corrected for drift
     const Vector3f &get_gyro(void) const;
+    const uint16_t get_range(void) const;
     const Matrix3f &get_rotation_body_to_ned(void) const;
 
     // return the current drift correction integrator value
@@ -192,7 +193,7 @@ public:
 
     // send a EKF_STATUS_REPORT for current EKF
     void send_ekf_status_report(mavlink_channel_t chan);
-    
+
     // get_hgt_ctrl_limit - get maximum height to be observed by the control loops in metres and a validity flag
     // this is used to limit height during optical flow navigation
     // it will return invalid when no limiting is required
@@ -224,7 +225,7 @@ public:
 
     // is the EKF backend doing its own sensor logging?
     bool have_ekf_logging(void) const override;
-    
+
 private:
     enum EKF_TYPE {EKF_TYPE_NONE=0,
 #if AP_AHRS_WITH_EKF1
@@ -243,6 +244,7 @@ private:
 
     NavEKF &EKF1;
     NavEKF2 &EKF2;
+    RangeFinder &_rng;
     bool ekf1_started:1;
     bool ekf2_started:1;
     bool force_ekf:1;
@@ -264,6 +266,6 @@ private:
 #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
     SITL::SITL *_sitl;
     void update_SITL(void);
-#endif    
+#endif
 };
 #endif
