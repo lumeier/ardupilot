@@ -70,7 +70,6 @@ private:
     double fps;
     int vision_subsample;
     bool auto_subsample;
-    void _init_rangefinder(); //Rangefinder Init_Function
 
     void _run_optflow();
     static void *_read_thread(void *arg);
